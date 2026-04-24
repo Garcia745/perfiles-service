@@ -1,39 +1,64 @@
 package com.empresa.perfiles_service.messaging;
 
+import com.empresa.perfiles_service.dto.EmpleadoEventDTO;
 import com.empresa.perfiles_service.service.PerfilService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
-import org.json.JSONObject;
 
 /**
- * Este componente escucha los eventos relacionados con empleados que se crean
- * y automáticamente genera un perfil por defecto para cada nuevo empleado.
+ * 🔹 Listener de eventos de empleados
+ *
+ * Escucha eventos desde RabbitMQ y ejecuta acciones en perfiles:
+ *
+ * - CREADO → crea perfil automáticamente
+ * - ELIMINADO → desactiva perfil (soft delete)
  */
+@Slf4j
 @Component
 public class PerfilEventListener {
 
     private final PerfilService perfilService;
 
-    // Se inyecta el servicio que maneja la lógica de creación de perfiles
     public PerfilEventListener(PerfilService perfilService) {
         this.perfilService = perfilService;
     }
 
     /**
-     * Método que se ejecuta cada vez que llega un mensaje a la cola "perfiles-queue".
-     * @param mensaje Información del empleado en formato JSON
+     * Este método se ejecuta cada vez que llega un mensaje a la cola.
+     *
+     * Spring convierte automáticamente el JSON → EmpleadoEventDTO
      */
-    @RabbitListener(queues = "perfiles-queue")
-    public void recibirEmpleadoCreado(String mensaje) {
+    @RabbitListener(queues = "${rabbitmq.queue.perfiles}")
+    public void procesarEventoEmpleado(EmpleadoEventDTO evento) {
 
-        // Convertir el mensaje JSON a un objeto para extraer los datos
-        JSONObject json = new JSONObject(mensaje);
+        // 🔹 Validación básica para evitar errores
+        if (evento.getEvento() == null || evento.getId() == null) {
+            log.warn("Evento inválido recibido: {}", evento);
+            return;
+        }
 
-        String id = json.getString("id");
-        String nombre = json.getString("nombre");
-        String email = json.getString("email");
+        log.info("Evento recibido: {} - ID: {} - Nombre: {}",
+                evento.getEvento(),
+                evento.getId(),
+                evento.getNombre());
 
-        // Crear el perfil automáticamente usando los datos recibidos
-        perfilService.crearPerfilPorDefecto(id, nombre, email);
+        switch (evento.getEvento().toUpperCase()) {
+
+            case "CREADO":
+                perfilService.crearPerfilPorDefecto(
+                        evento.getId(),
+                        evento.getNombre(),
+                        evento.getEmail()
+                );
+                break;
+
+            case "ELIMINADO":
+                perfilService.desactivarPerfil(evento.getId());
+                break;
+
+            default:
+                log.warn("Evento no reconocido: {}", evento.getEvento());
+        }
     }
 }

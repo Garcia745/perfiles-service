@@ -8,6 +8,7 @@ public class PerfilResponseDTO {
     private String empleadoId;
     private String nombre;
     private String email;
+    private Boolean activo;
     private String telefono;
     private String ciudad;
     private String biografia;

@@ -14,6 +14,7 @@ public class Perfil {
     private String id;
     private String empleadoId;
     private String nombre;
+    private boolean activo;
     private String email;
     private String telefono = "";
     private String direccion = "";
